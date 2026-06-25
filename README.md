@@ -64,19 +64,37 @@ Why this plan:
 
 ## 🧪 Testing PawPal+
 
+Run the automated test suite from the project root:
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+**What the tests cover** ([`tests/test_pawpal.py`](tests/test_pawpal.py)):
+
+- **Task completion** — `mark_complete()` flips a task's status to done.
+- **Task addition** — adding a task to a `Pet` increases that pet's task count.
+- **Sorting correctness** — `Scheduler.sort_by_time()` returns tasks in chronological order, with untimed tasks placed last.
+- **Recurrence logic** — completing a `daily` task spawns a new occurrence on the same pet, due exactly one day later and still pending.
+- **Conflict detection** — `Scheduler.detect_conflicts()` flags two tasks that share the same `preferred_time`, and returns an empty list when all times are unique.
+
+**Successful test run:**
 
 ```
-# Paste your pytest output here
+============================= test session starts ==============================
+platform darwin -- Python 3.10.9, pytest-7.1.3, pluggy-1.0.0
+rootdir: /Users/andrewansah/Desktop/school work/CodePath/ai110-module2show-pawpal-starter
+plugins: anyio-4.13.0
+collected 6 items
+
+tests/test_pawpal.py ......                                              [100%]
+
+============================== 6 passed in 0.01s ===============================
 ```
+
+**Confidence Level: ★★★★☆ (4 / 5)**
+
+All 6 tests pass and cover the core behaviors — sorting, recurrence, conflict detection, and task management — including the trickiest logic (date math via `timedelta` and same-time conflict grouping). I'm holding back the fifth star because a few edge cases aren't covered yet: the double-complete guard, `filter_tasks` status filtering, `once`/non-recurring tasks, over-budget plan deferral, and overlapping-duration conflicts (which `detect_conflicts` intentionally does **not** catch). Adding those would raise confidence to 5/5.
 
 ## 📐 Smarter Scheduling
 
