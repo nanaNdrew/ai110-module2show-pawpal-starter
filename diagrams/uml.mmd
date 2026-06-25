@@ -1,15 +1,61 @@
 classDiagram
-    %% Replace the placeholders below with your actual classes, attributes, methods, and relationships.
-    %% Keep this file updated so it matches your final implementation.
+    %% PawPal+ class design
+    %% Owner has Pets; each Pet has Tasks; Scheduler turns Tasks + constraints into a Plan.
 
-    class ClassName {
-        +type attribute
-        +method() returnType
+    class Owner {
+        +str name
+        +int available_minutes
+        +dict preferences
+        +list~Pet~ pets
+        +add_pet(pet) None
+        +remove_pet(pet) None
+        +set_available_time(minutes) None
+        +set_preference(key, value) None
     }
 
-    class AnotherClass {
-        +type attribute
-        +method() returnType
+    class Pet {
+        +str name
+        +str species
+        +list~Task~ tasks
+        +add_task(task) None
+        +edit_task(task, kwargs) None
+        +remove_task(task) None
+        +list_tasks() list~Task~
     }
 
-    ClassName --> AnotherClass : relationship
+    class Task {
+        +str title
+        +int duration_minutes
+        +str priority
+        +str category
+        +str preferred_time
+        +bool recurring
+        +priority_rank() int
+        +fits_in(remaining_minutes) bool
+        +summary() str
+    }
+
+    class Scheduler {
+        +int available_minutes
+        +str strategy
+        +build_plan(tasks, available_minutes) Plan
+        +sort_tasks(tasks) list~Task~
+        +select_tasks(tasks) list~Task~
+        +resolve_conflicts(tasks) list~Task~
+    }
+
+    class Plan {
+        +list scheduled_items
+        +list~Task~ deferred_tasks
+        +int total_minutes_used
+        +str reasoning
+        +add_item(time, task) None
+        +explain() str
+        +to_table() list
+    }
+
+    Owner "1" --> "*" Pet : owns
+    Pet "1" --> "*" Task : has
+    Scheduler ..> Task : reads
+    Scheduler ..> Plan : produces
+    Plan "1" --> "*" Task : contains
