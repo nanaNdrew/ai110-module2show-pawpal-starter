@@ -1,0 +1,77 @@
+classDiagram
+    %% PawPal+ final class design (reflects pawpal_system.py as built)
+    %% Owner has Pets; each Pet has Tasks; Scheduler turns an Owner's Tasks
+    %% plus constraints into a Plan. Tasks carry a back-reference to their Pet.
+
+    class Owner {
+        +str name
+        +int available_minutes
+        +dict preferences
+        +list~Pet~ pets
+        +add_pet(pet) Pet
+        +remove_pet(pet) None
+        +set_available_time(minutes) None
+        +set_preference(key, value) None
+        +all_tasks() list~Task~
+        +pending_tasks() list~Task~
+        +filter_tasks(pet_name, completed) list~Task~
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +list~Task~ tasks
+        +add_task(task) Task
+        +edit_task(task, kwargs) Task
+        +remove_task(task) None
+        +list_tasks() list~Task~
+        +pending_tasks() list~Task~
+    }
+
+    class Task {
+        +str title
+        +int duration_minutes
+        +str priority
+        +str frequency
+        +str preferred_time
+        +str category
+        +bool completed
+        +date due_date
+        +Pet pet
+        +priority_rank() int
+        +fits_in(remaining_minutes) bool
+        +mark_complete() Task
+        +mark_incomplete() None
+        +summary() str
+    }
+
+    class Scheduler {
+        +int available_minutes
+        +str strategy
+        +str day_start
+        +get_tasks(owner) list~Task~
+        +sort_tasks(tasks) list~Task~
+        +sort_by_time(tasks) list~Task~
+        +select_tasks(tasks, available_minutes) tuple
+        +detect_conflicts(tasks) list~str~
+        +build_plan(tasks, available_minutes, start_time) Plan
+        +plan_for_owner(owner, start_time) Plan
+    }
+
+    class Plan {
+        +list scheduled_items
+        +list~Task~ deferred_tasks
+        +int total_minutes_used
+        +str reasoning
+        +add_item(time, task) None
+        +explain() str
+        +to_table() list
+    }
+
+    Owner "1" --> "*" Pet : owns
+    Pet "1" --> "*" Task : has
+    Task "*" --> "1" Pet : belongs to
+    Scheduler ..> Owner : reads tasks from
+    Scheduler ..> Task : sorts / checks
+    Scheduler ..> Plan : produces
+    Plan "1" --> "*" Task : contains

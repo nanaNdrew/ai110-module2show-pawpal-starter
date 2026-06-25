@@ -12,15 +12,20 @@ A busy pet owner needs help staying consistent with pet care. They want an assis
 
 Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
 
-## What you will build
+## ✨ Features
 
-Your final app should:
+PawPal+ turns a loose list of pet care tasks into an explained daily plan. The
+implemented features and the algorithms behind them:
 
-- Let a user enter basic owner + pet info
-- Let a user add/edit tasks (duration + priority at minimum)
-- Generate a daily schedule/plan based on constraints and priorities
-- Display the plan clearly (and ideally explain the reasoning)
-- Include tests for the most important scheduling behaviors
+- **Pet & task management** — register an owner, add multiple pets, and attach care tasks (title, duration, priority, preferred time, frequency) to each pet.
+- **Priority scheduling** — `Scheduler.build_plan()` orders tasks high → low priority (ties broken by shorter duration) and fits them into the owner's available-minutes budget, deferring whatever doesn't fit.
+- **Sorting by time** — `Scheduler.sort_by_time()` lists tasks in chronological order by their `"HH:MM"` preferred time, with untimed tasks placed last.
+- **Filtering by pet or status** — `Owner.filter_tasks()` narrows tasks by pet name and/or completion status (all / pending / completed).
+- **Conflict warnings** — `Scheduler.detect_conflicts()` flags any time slot claimed by two or more tasks (within one pet or across pets) and returns human-readable warnings instead of crashing.
+- **Daily / weekly recurrence** — completing a recurring task (`Task.mark_complete()`) automatically spawns the next occurrence, advancing the due date with `datetime.timedelta` (daily → +1 day, weekly → +7 days).
+- **Plan reasoning** — every plan explains which tasks were scheduled, how much time was used, and what was deferred and why (`Plan.explain()`).
+- **Two front ends** — an interactive Streamlit UI (`app.py`) and a terminal demo (`main.py`), both driven by the same logic layer.
+- **Automated tests** — a `pytest` suite covering the core behaviors (see [Testing PawPal+](#-testing-pawpal)).
 
 ## Getting started
 
@@ -42,25 +47,14 @@ pip install -r requirements.txt
 6. Connect your logic to the Streamlit UI in `app.py`.
 7. Refine UML so it matches what you actually built.
 
-## 🖥️ Sample Output
+## 🖥️ Running PawPal+
 
-Running the terminal testing ground (`python main.py`) produces the following plan,
-which orders tasks across both pets by priority and assigns clock times:
+```bash
+streamlit run app.py   # interactive web UI
+python main.py         # terminal demo (sample output below)
+```
 
-```
-Today's Schedule for Jordan
-========================================
-  08:00 — Feeding for Biscuit (10 min) [priority: high]
-  08:10 — Feeding for Mochi (10 min) [priority: high]
-  08:20 — Morning walk for Biscuit (30 min) [priority: high]
-  08:50 — Litter cleanup for Mochi (15 min) [priority: medium]
-  09:05 — Enrichment play for Mochi (25 min) [priority: low]
-----------------------------------------
-Time used: 90 of 90 min
-----------------------------------------
-Why this plan:
-  Scheduled 5 task(s) using 90 of 90 available minutes, ordered by priority (high → low). All tasks fit within the available time.
-```
+See the [Demo Walkthrough](#-demo-walkthrough) for a full example run and annotated CLI output.
 
 ## 🧪 Testing PawPal+
 
@@ -144,14 +138,86 @@ builds a fresh `Task` whose `due_date` is advanced with `datetime.timedelta`
 Non-recurring tasks (e.g. `"once"`) return `None`, and completing an
 already-completed task is a no-op so an occurrence is never spawned twice.
 
-## 📸 Demo Walkthrough
+## 🚶 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+### Main UI features (`streamlit run app.py`)
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+The Streamlit app is a single page where the owner can:
+
+- **Enter owner & pet info** — owner name, pet name, species, and the minutes available today.
+- **Add tasks** — title, duration, priority, and a preferred time picker; each click attaches a `Task` to the pet and confirms it with a success message.
+- **Browse tasks** — a status filter (All / Pending / Completed) and a table that always shows tasks **sorted chronologically**, with a ✅/⏳ status column.
+- **See conflict warnings** — the app continuously checks for two tasks at the same time and shows a warning banner, or a green "no conflicts" confirmation.
+- **Generate the daily schedule** — one button builds the plan, shows the timed table, minutes used, deferred tasks, and the plain-language reasoning.
+
+### Example workflow
+
+1. **Add the owner & pet** — enter "Jordan", pet "Mochi" (cat), and `60` minutes available.
+2. **Add a task** — "Morning walk", 30 min, high priority, preferred time `08:00`, then **Add task** → a success banner confirms it.
+3. **Add a clashing task** — add "Feeding" at `08:00` as well.
+4. **Review the list** — the table shows both tasks in time order, and a ⚠️ warning appears: two tasks scheduled at 08:00.
+5. **Filter** — switch the filter to "Pending" to hide completed tasks.
+6. **Generate schedule** — click **Generate schedule** to see today's timed plan, the minutes used, anything deferred, and why.
+
+### Key Scheduler behaviors shown
+
+- **Sorting by time** — tasks added out of order display chronologically (`08:00 → 08:30 → 12:30 → 18:00`), untimed tasks last.
+- **Filtering** — completed vs. pending tasks, and per-pet views.
+- **Conflict warnings** — two tasks at `08:30` (Medication for Biscuit, Feeding for Mochi) raise a warning instead of failing.
+- **Recurrence** — completing the daily "Morning walk" auto-creates tomorrow's occurrence.
+- **Priority + budget planning** — tasks are scheduled high → low until the 90-minute budget runs out; "Enrichment play" is deferred.
+
+### Sample CLI output (`python main.py`)
+
+```
+Completing 'Morning walk' (due 2026-06-24, daily)
+  -> auto-created next occurrence due 2026-06-25
+
+All tasks sorted by time
+========================================
+  08:00  [✓] Morning walk for Biscuit (30 min, priority: high)
+  08:00  [ ] Morning walk for Biscuit (30 min, priority: high)
+  08:30  [ ] Medication for Biscuit (5 min, priority: high)
+  08:30  [ ] Feeding for Mochi (10 min, priority: high)
+  12:30  [ ] Midday feeding for Biscuit (10 min, priority: medium)
+  18:00  [ ] Evening walk for Biscuit (30 min, priority: high)
+  --:--  [ ] Enrichment play for Mochi (25 min, priority: low)
+
+Filter — only Mochi's tasks
+----------------------------------------
+  [ ] Feeding for Mochi (10 min, priority: high)
+  [ ] Enrichment play for Mochi (25 min, priority: low)
+
+Filter — completed vs pending
+----------------------------------------
+  Completed:
+    [✓] Morning walk for Biscuit (30 min, priority: high)
+  Pending:
+    [ ] Morning walk for Biscuit (30 min, priority: high)
+    [ ] Medication for Biscuit (5 min, priority: high)
+    [ ] Feeding for Mochi (10 min, priority: high)
+    [ ] Midday feeding for Biscuit (10 min, priority: medium)
+    [ ] Evening walk for Biscuit (30 min, priority: high)
+    [ ] Enrichment play for Mochi (25 min, priority: low)
+
+Conflict check
+----------------------------------------
+  ⚠ Conflict at 08:30: 2 tasks scheduled — Medication (Biscuit), Feeding (Mochi).
+
+Today's Schedule for Jordan
+========================================
+  08:00 — Medication for Biscuit (5 min) [priority: high]
+  08:05 — Feeding for Mochi (10 min) [priority: high]
+  08:15 — Evening walk for Biscuit (30 min) [priority: high]
+  08:45 — Morning walk for Biscuit (30 min) [priority: high]
+  09:15 — Midday feeding for Biscuit (10 min) [priority: medium]
+----------------------------------------
+Time used: 85 of 90 min
+Deferred (did not fit):
+  - Enrichment play (25 min, low)
+----------------------------------------
+Why this plan:
+  Scheduled 5 task(s) using 85 of 90 available minutes, ordered by priority (high → low). Deferred 1 task(s) that did not fit the budget: Enrichment play.
+```
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->

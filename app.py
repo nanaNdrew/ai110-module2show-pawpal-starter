@@ -1,3 +1,5 @@
+from datetime import time
+
 import streamlit as st
 
 from pawpal_system import Owner, Pet, Task, Plan, Scheduler
@@ -64,35 +66,73 @@ owner.set_available_time(int(available_minutes))
 pet.name = pet_name
 pet.species = species
 
+# One Scheduler drives the display methods (sorting + conflict detection).
+scheduler = Scheduler(available_minutes=owner.available_minutes)
+
 st.markdown("### Tasks")
 st.caption("Add a few tasks. These feed directly into your scheduler.")
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
     task_title = st.text_input("Task title", value="Morning walk")
 with col2:
     duration = st.number_input("Duration (minutes)", min_value=1, max_value=240, value=20)
 with col3:
     priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
+with col4:
+    preferred_time = st.time_input("Preferred time", value=time(8, 0))
 
 if st.button("Add task"):
     pet.add_task(
-        Task(title=task_title, duration_minutes=int(duration), priority=priority)
+        Task(
+            title=task_title,
+            duration_minutes=int(duration),
+            priority=priority,
+            preferred_time=preferred_time.strftime("%H:%M"),
+        )
     )
+    st.success(f"Added “{task_title}” at {preferred_time.strftime('%H:%M')}.")
 
-if pet.list_tasks():
-    st.write("Current tasks:")
-    st.table(
-        [
-            {
-                "title": t.title,
-                "duration_minutes": t.duration_minutes,
-                "priority": t.priority,
-                "completed": t.completed,
-            }
-            for t in pet.list_tasks()
-        ]
+# --- Sorted + filtered task list -----------------------------------------
+all_tasks = owner.all_tasks()
+if all_tasks:
+    st.markdown("#### Current tasks")
+    status_filter = st.radio(
+        "Show",
+        ["All", "Pending", "Completed"],
+        horizontal=True,
     )
+    completed = {"All": None, "Pending": False, "Completed": True}[status_filter]
+
+    # filter_tasks() narrows by status; sort_by_time() orders chronologically.
+    visible = owner.filter_tasks(completed=completed)
+    visible = scheduler.sort_by_time(visible)
+
+    if visible:
+        st.table(
+            [
+                {
+                    "Time": t.preferred_time or "—",
+                    "Task": t.title,
+                    "Pet": t.pet.name if t.pet else "",
+                    "Duration (min)": t.duration_minutes,
+                    "Priority": t.priority,
+                    "Status": "✅ done" if t.completed else "⏳ pending",
+                }
+                for t in visible
+            ]
+        )
+    else:
+        st.info(f"No {status_filter.lower()} tasks to show.")
+
+    # --- Conflict detection ----------------------------------------------
+    conflicts = scheduler.detect_conflicts(all_tasks)
+    if conflicts:
+        st.markdown("#### ⚠️ Scheduling conflicts")
+        for warning in conflicts:
+            st.warning(warning)
+    else:
+        st.success("No scheduling conflicts — every task has its own time slot.")
 else:
     st.info("No tasks yet. Add one above.")
 
@@ -102,20 +142,24 @@ st.subheader("Build Schedule")
 st.caption("Calls your Scheduler to plan the owner's day from their pending tasks.")
 
 if st.button("Generate schedule"):
-    scheduler = Scheduler(available_minutes=owner.available_minutes)
     plan = scheduler.plan_for_owner(owner)
 
     if plan.scheduled_items:
-        st.write("### Today's plan")
+        st.success(
+            f"Scheduled {len(plan.scheduled_items)} task(s) using "
+            f"{plan.total_minutes_used} of {owner.available_minutes} available minutes."
+        )
+        st.markdown("### Today's plan")
         st.table(plan.to_table())
-        st.metric("Minutes used", plan.total_minutes_used)
+        st.metric("Minutes used", f"{plan.total_minutes_used} / {owner.available_minutes}")
     else:
         st.info("No tasks could be scheduled. Add tasks or increase available time.")
 
     if plan.deferred_tasks:
-        st.write("**Deferred (didn't fit the time budget):**")
-        for t in plan.deferred_tasks:
-            st.write(f"- {t.title} ({t.duration_minutes} min)")
+        st.warning(
+            "Deferred (didn't fit the time budget): "
+            + ", ".join(f"{t.title} ({t.duration_minutes} min)" for t in plan.deferred_tasks)
+        )
 
-    st.write("### Why this plan")
-    st.write(plan.explain())
+    st.markdown("### Why this plan")
+    st.info(plan.explain())
