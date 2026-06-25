@@ -9,8 +9,14 @@ UML in diagrams/uml.mmd:
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 # Maps a priority label to a sortable rank (higher = more important).
 PRIORITY_ORDER = {"high": 3, "medium": 2, "low": 1}
+
+# How many days forward each recurring frequency repeats. A frequency not
+# listed here (e.g. "once") does not recur.
+FREQUENCY_DAYS = {"daily": 1, "weekly": 7}
 
 
 class Task:
@@ -25,6 +31,7 @@ class Task:
         preferred_time: str | None = None,
         category: str | None = None,
         completed: bool = False,
+        due_date: date | None = None,
     ) -> None:
         """Create a care task with its duration, priority, and scheduling hints."""
         self.title = title  # description of the activity
@@ -34,6 +41,7 @@ class Task:
         self.preferred_time = preferred_time  # optional fixed time, "HH:MM"
         self.category = category  # e.g. walk, feeding, meds, grooming
         self.completed = completed
+        self.due_date = due_date or date.today()  # day this occurrence is due
         self.pet: Pet | None = None  # back-reference, set by Pet.add_task
 
     def priority_rank(self) -> int:
@@ -44,9 +52,35 @@ class Task:
         """Return True if this task still fits in the remaining time budget."""
         return self.duration_minutes <= remaining_minutes
 
-    def mark_complete(self) -> None:
-        """Mark this task as done."""
+    def mark_complete(self) -> Task | None:
+        """Mark this task done; if it recurs, spawn and return the next occurrence.
+
+        A "daily" task's next due date is today + 1 day and a "weekly" task's is
+        today + 7 days (computed with timedelta). The new occurrence is attached
+        to the same pet. Non-recurring tasks (e.g. "once") return None, and
+        completing an already-completed task is a no-op so it never spawns twice.
+        """
+        if self.completed:
+            return None
         self.completed = True
+
+        days = FREQUENCY_DAYS.get(self.frequency.lower())
+        if days is None:
+            return None  # not a recurring task
+
+        next_task = Task(
+            title=self.title,
+            duration_minutes=self.duration_minutes,
+            priority=self.priority,
+            frequency=self.frequency,
+            preferred_time=self.preferred_time,
+            category=self.category,
+            completed=False,
+            due_date=self.due_date + timedelta(days=days),
+        )
+        if self.pet is not None:
+            self.pet.add_task(next_task)
+        return next_task
 
     def mark_incomplete(self) -> None:
         """Mark this task as not yet done."""
@@ -150,6 +184,23 @@ class Owner:
         """Return every not-yet-completed task across all pets."""
         return [t for t in self.all_tasks() if not t.completed]
 
+    def filter_tasks(
+        self,
+        pet_name: str | None = None,
+        completed: bool | None = None,
+    ) -> list[Task]:
+        """Return tasks across all pets, optionally filtered by pet and/or status.
+
+        Pass pet_name to keep only that pet's tasks, and/or completed=True/False
+        to keep only done/not-done tasks. Arguments left as None are ignored.
+        """
+        tasks = self.all_tasks()
+        if pet_name is not None:
+            tasks = [t for t in tasks if t.pet and t.pet.name == pet_name]
+        if completed is not None:
+            tasks = [t for t in tasks if t.completed == completed]
+        return tasks
+
     def __repr__(self) -> str:
         """Return a debug representation of the owner."""
         return f"Owner({self.name!r}, {len(self.pets)} pets)"
@@ -222,6 +273,45 @@ class Scheduler:
             tasks,
             key=lambda t: (-t.priority_rank(), t.duration_minutes),
         )
+
+    def sort_by_time(self, tasks: list[Task]) -> list[Task]:
+        """Order tasks chronologically by their 'HH:MM' preferred_time.
+
+        Zero-padded 'HH:MM' strings sort correctly with a plain string compare,
+        so the lambda key sorts on preferred_time directly. Tasks with no
+        preferred time sort last (the leading bool is False for timed tasks).
+        """
+        return sorted(
+            tasks,
+            key=lambda t: (t.preferred_time is None, t.preferred_time or ""),
+        )
+
+    def detect_conflicts(self, tasks: list[Task]) -> list[str]:
+        """Return a warning message for each preferred_time wanted by 2+ tasks.
+
+        Lightweight, non-crashing check: tasks are grouped by their 'HH:MM'
+        preferred_time and any slot claimed more than once becomes a warning
+        string. Tasks with no preferred time can't clash, and completed tasks no
+        longer compete for a slot, so both are skipped. Returns an empty list
+        when there are no conflicts.
+        """
+        by_time: dict[str, list[Task]] = {}
+        for task in tasks:
+            if task.preferred_time is None or task.completed:
+                continue
+            by_time.setdefault(task.preferred_time, []).append(task)
+
+        warnings: list[str] = []
+        for time, clashing in sorted(by_time.items()):
+            if len(clashing) > 1:
+                names = ", ".join(
+                    f"{t.title} ({t.pet.name if t.pet else 'no pet'})"
+                    for t in clashing
+                )
+                warnings.append(
+                    f"⚠ Conflict at {time}: {len(clashing)} tasks scheduled — {names}."
+                )
+        return warnings
 
     def select_tasks(
         self, tasks: list[Task], available_minutes: int

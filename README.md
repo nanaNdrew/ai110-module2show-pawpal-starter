@@ -80,14 +80,51 @@ Sample test output:
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
+Beyond the basic priority-and-time planner, PawPal+ adds four "smarter" behaviors.
+Each is implemented as a focused method in [`pawpal_system.py`](pawpal_system.py):
 
-| Feature | Method(s) | Notes |
-|---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Feature | Method | Notes |
+|---------|--------|-------|
+| Sorting by time | `Scheduler.sort_by_time()` | Chronological order by `preferred_time` |
+| Sorting by priority | `Scheduler.sort_tasks()` | High → low, ties broken by shorter duration |
+| Filtering by pet / status | `Owner.filter_tasks()` | Filter by `pet_name` and/or `completed` |
+| Conflict detection | `Scheduler.detect_conflicts()` | Warns on tasks sharing the same time slot |
+| Recurring tasks | `Task.mark_complete()` | Spawns the next daily/weekly occurrence |
+
+### Sorting behavior — `Scheduler.sort_by_time()`
+
+Orders a list of tasks chronologically by their `preferred_time`. Because times are
+stored as zero-padded `"HH:MM"` strings, a plain string comparison already matches
+clock order, so the sort key is a simple lambda — no parsing into numbers needed.
+Tasks with no `preferred_time` sort to the end. The existing
+`Scheduler.sort_tasks()` remains available for priority-first ordering (high → low,
+tie-broken by shorter duration).
+
+### Filtering behavior — `Owner.filter_tasks(pet_name=None, completed=None)`
+
+Returns tasks across all of an owner's pets, optionally narrowed by **pet name**,
+by **completion status**, or both. Each argument is independent and ignored when
+left as `None`; passing `completed=False` correctly keeps only pending tasks
+(the check uses `is not None`, so `False` still filters rather than being skipped).
+
+### Conflict detection logic — `Scheduler.detect_conflicts()`
+
+A lightweight, non-crashing check: it groups tasks by their `preferred_time` and
+returns a **list of warning strings** — one per time slot claimed by two or more
+tasks — instead of raising an exception. It catches clashes both within a single
+pet and across different pets, and skips tasks that have no preferred time or are
+already completed (they can't compete for a slot). An empty list means no
+conflicts. By design it only flags *exact* same-time matches, not overlapping
+durations (documented as a tradeoff in [`reflection.md`](reflection.md)).
+
+### Recurring task logic — `Task.mark_complete()`
+
+When a recurring task is completed, the next occurrence is created automatically.
+`mark_complete()` sets the task done and, for a `"daily"` or `"weekly"` frequency,
+builds a fresh `Task` whose `due_date` is advanced with `datetime.timedelta`
+(daily → today + 1 day, weekly → today + 7 days) and attaches it to the same pet.
+Non-recurring tasks (e.g. `"once"`) return `None`, and completing an
+already-completed task is a no-op so an occurrence is never spawned twice.
 
 ## 📸 Demo Walkthrough
 

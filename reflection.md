@@ -47,8 +47,9 @@ I also noticed that **owner preferences never reach the Scheduler** (`build_plan
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+One deliberate tradeoff is in how `Scheduler.detect_conflicts` flags scheduling clashes: **it only catches tasks that request the exact same `preferred_time`, not tasks whose durations overlap.** The implementation groups tasks by their `"HH:MM"` string and warns about any slot claimed by two or more tasks. So a 30-minute walk at 08:00 and a feeding at 08:30 are treated as conflict-free, even though the walk actually runs until 08:30 and the two overlap in real time. A true overlap check would convert each task to a `(start, end)` interval and compare ranges (e.g. `next.start < prev.end`).
+
+This tradeoff is reasonable for the scenario for three reasons. First, it keeps the check **lightweight and non-crashing** — it's a single pass that builds a dict and returns warning strings, with no time arithmetic or edge cases around midnight wraparound, so it can't throw and derail the plan. Second, **exact-match conflicts are the most common and most confusing case** for a pet owner: accidentally typing 08:30 for two different pets' feedings is the mistake people actually make, and that's exactly what the warning surfaces. Third, the conflict check is **advisory, not blocking** — the scheduler still builds a complete plan and rolls tasks forward sequentially so nothing literally double-books the clock; the warning just nudges the owner to review. Given that the plan already separates tasks in time when it lays them out, the cost of missing a duration overlap is low, while the benefit of catching obvious same-time mistakes is high. Full interval-overlap detection is a clear next iteration, but it wasn't worth the added complexity for this version.
 
 ---
 

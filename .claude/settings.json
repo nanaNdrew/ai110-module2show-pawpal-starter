@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app.py'\\).read\\(\\)\\); print\\('app.py parses OK'\\)\")",
+      "Bash(python -c ' *)"
     ]
   }
 }
