@@ -44,14 +44,22 @@ pip install -r requirements.txt
 
 ## 🖥️ Sample Output
 
-Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
+Running the terminal testing ground (`python main.py`) produces the following plan,
+which orders tasks across both pets by priority and assigns clock times:
 
 ```
-# e.g.:
-# Daily plan for Biscuit (Golden Retriever):
-#   08:00 — Morning walk (30 min) [priority: high]
-#   09:00 — Feeding (10 min) [priority: high]
-#   ...
+Today's Schedule for Jordan
+========================================
+  08:00 — Feeding for Biscuit (10 min) [priority: high]
+  08:10 — Feeding for Mochi (10 min) [priority: high]
+  08:20 — Morning walk for Biscuit (30 min) [priority: high]
+  08:50 — Litter cleanup for Mochi (15 min) [priority: medium]
+  09:05 — Enrichment play for Mochi (25 min) [priority: low]
+----------------------------------------
+Time used: 90 of 90 min
+----------------------------------------
+Why this plan:
+  Scheduled 5 task(s) using 90 of 90 available minutes, ordered by priority (high → low). All tasks fit within the available time.
 ```
 
 ## 🧪 Testing PawPal+

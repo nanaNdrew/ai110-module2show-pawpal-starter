@@ -16,13 +16,25 @@ A supporting action is entering basic owner and pet info, which gives the plan c
 
 **a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
+My initial UML had five classes, each with a single clear responsibility:
+
+- **Task** — represents one pet care task. It holds the data the scheduler needs (title, duration, priority) plus optional details (category, preferred time, recurring). It is responsible for answering questions about itself: how important it is (`priority_rank`), whether it still fits in the remaining time (`fits_in`), and how to describe itself (`summary`).
+- **Pet** — represents an animal (name, species) and owns the list of tasks for that pet. It is responsible for managing its own tasks (`add_task`, `edit_task`, `remove_task`, `list_tasks`).
+- **Owner** — represents the person using the app. It holds the owner's name, available time, and preferences, and owns the list of pets. It is responsible for managing pets and the constraints the owner controls (`add_pet`, `set_available_time`, `set_preference`).
+- **Scheduler** — the "brain." It takes a list of tasks plus constraints and is responsible for the planning algorithm: ordering tasks by priority (`sort_tasks`), choosing which fit the time budget (`select_tasks`), handling conflicts (`resolve_conflicts`), and assembling the result (`build_plan`).
+- **Plan** — the output the owner views. It holds the scheduled items, the deferred (dropped) tasks, total time used, and the reasoning. It is responsible for presenting itself (`to_table`) and explaining the choices (`explain`).
+
+The key design decision was separating the **algorithm** (Scheduler) from the **result** (Plan), so the scheduler can be unit-tested in isolation — give it tasks, assert the plan — without involving the UI or storage. Relationships: an Owner has many Pets, a Pet has many Tasks, and the Scheduler reads Tasks to produce a Plan.
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+After drafting the skeleton I reviewed it for missing relationships and bottlenecks and made two changes:
+
+1. **Added a `Task → Pet` back-reference.** Originally a Task had no link to its Pet, but the Scheduler flattens tasks from multiple pets into one list and the Plan only stored `(time, task)`. That meant a generated plan couldn't say *whose* task it was (e.g. "walk Mochi"). I added a `pet` attribute on `Task` (set by `Pet.add_task`) so ownership survives into the plan. This makes the relationship navigable in both directions, which matters once an owner has more than one pet.
+
+2. **Added a clock-time source to the Scheduler.** The sample output shows tasks at real times (`08:00 — Morning walk`) and `Plan.add_item` expects a time, but nothing in the design computed one. I added a `day_start` attribute on `Scheduler` and a `start_time` parameter on `build_plan`, so scheduled tasks can be assigned clock times rolled forward by their durations. Without this the scheduler could order and select tasks but never actually place them on a clock.
+
+I also noticed that **owner preferences never reach the Scheduler** (`build_plan` only receives tasks and a time budget). I chose *not* to fix this yet — basic priority-and-time scheduling works without it, and I'd rather add preference handling once the core algorithm is proven, in line with the "implement in small increments" approach. I've noted it as a known limitation to revisit.
 
 ---
 
